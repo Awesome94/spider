@@ -3,7 +3,6 @@ from scrapy import Request
 from scrapy.loader import ItemLoader
 from property import Property
 
-
 class LondonrelocationSpider(scrapy.Spider):
     name = 'londonrelocation'
     allowed_domains = ['londonrelocation.com']
@@ -26,6 +25,7 @@ class LondonrelocationSpider(scrapy.Spider):
         paginated = response.xpath(
             '//div[contains(@class,"pagination-wrap")]//div[contains(@class,"pagination")]/ul//@href').extract()
 
+        # limitting pagination to the first 3 urls/pages
         for url in paginated[:3]:
             yield Request(url=url, callback=self.extract_data)
 
@@ -34,9 +34,9 @@ class LondonrelocationSpider(scrapy.Spider):
             './/div[contains(@class,"h4-space")]//h4/a/@href').extract()
         for url in urls:
             abs_url = 'https://londonrelocation.com'+url
-            yield Request(url=abs_url, callback=self.get_title_and_rent_value)
+            yield Request(url=abs_url, callback=self.parse_to_json)
 
-    def get_title_and_rent_value(self, response):
+    def parse_to_json(self, response):
         title, url, price = '', '', ''
         title = response.xpath(
             './/div[contains(@class,"content")]//h1/text()')[0].extract()
@@ -44,6 +44,7 @@ class LondonrelocationSpider(scrapy.Spider):
         price = response.xpath(
             './/div[contains(@class,"content")]//h3/text()')[0].extract().lower()
         if 'pw' in price:
+            # only calculate monthly price when it has the per week tag(pw)
             price = str(int(price[1:].replace('pw', ''))*4)
         else:
             price = price.split(' ')[0][1:]

@@ -15,18 +15,41 @@ class LondonrelocationSpider(scrapy.Spider):
                           callback=self.parse_area)
 
     def parse_area(self, response):
-        area_urls = response.xpath('.//div[contains(@class,"area-box-pdh")]//h4/a/@href').extract()
+        area_urls = response.xpath(
+            './/div[contains(@class,"area-box-pdh")]//h4/a/@href').extract()
         for area_url in area_urls:
             yield Request(url=area_url,
                           callback=self.parse_area_pages)
 
     def parse_area_pages(self, response):
         # Write your code here and remove `pass` in the following line
-        pass
+        paginated = response.xpath(
+            '//div[contains(@class,"pagination-wrap")]//div[contains(@class,"pagination")]/ul//@href').extract()
 
-        # an example for adding a property to the json list:
-        # property = ItemLoader(item=Property())
-        # property.add_value('title', '2 bedroom flat for rental')
-        # property.add_value('price', '1680') # 420 per week
-        # property.add_value('url', 'https://londonrelocation.com/properties-to-rent/properties/property-london/534465-2-bed-frognal-hampstead-nw3/')
-        # return property.load_item()
+        for url in paginated[:3]:
+            yield Request(url=url, callback=self.extract_data)
+
+    def extract_data(self, response):
+        urls = response.xpath(
+            './/div[contains(@class,"h4-space")]//h4/a/@href').extract()
+        for url in urls:
+            abs_url = 'https://londonrelocation.com'+url
+            yield Request(url=abs_url, callback=self.get_title_and_rent_value)
+
+    def get_title_and_rent_value(self, response):
+        title, url, price = '', '', ''
+        title = response.xpath(
+            './/div[contains(@class,"content")]//h1/text()')[0].extract()
+        url = response.url
+        price = response.xpath(
+            './/div[contains(@class,"content")]//h3/text()')[0].extract().lower()
+        if 'pw' in price:
+            price = str(int(price[1:].replace('pw', ''))*4)
+        else:
+            price = price.split(' ')[0][1:]
+
+        property = ItemLoader(item=Property())
+        property.add_value('title', title)
+        property.add_value('url', url)
+        property.add_value('price', price)
+        return property.load_item()
